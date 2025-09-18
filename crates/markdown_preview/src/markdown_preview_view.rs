@@ -150,7 +150,7 @@ impl MarkdownPreviewView {
         if let Some(editor) = workspace
             .active_item(cx)
             .and_then(|item| item.act_as::<Editor>(cx))
-            && editor.read(cx).is_markdown(cx)
+            && Self::is_markdown_file(&editor, cx)
         {
             return Some(editor);
         }
@@ -244,10 +244,20 @@ impl MarkdownPreviewView {
         if let Some(item) = active_item
             && item.item_id() != cx.entity_id()
             && let Some(editor) = item.act_as::<Editor>(cx)
-            && editor.read(cx).is_markdown(cx)
+            && Self::is_markdown_file(&editor, cx)
         {
             self.set_editor(editor, window, cx);
         }
+    }
+
+    pub fn is_markdown_file<V>(editor: &Entity<Editor>, cx: &mut Context<V>) -> bool {
+        let buffer = editor.read(cx).buffer().read(cx);
+        if let Some(buffer) = buffer.as_singleton()
+            && let Some(language) = buffer.read(cx).language()
+        {
+            return language.name() == "Markdown".into();
+        }
+        false
     }
 
     fn set_editor(&mut self, editor: Entity<Editor>, window: &mut Window, cx: &mut Context<Self>) {

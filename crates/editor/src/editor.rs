@@ -2740,16 +2740,6 @@ impl Editor {
         self.buffer.read(cx).language_at(point, cx)
     }
 
-    pub fn is_markdown(&self, cx: &App) -> bool {
-        let buffer = self.buffer.read(cx);
-        if let Some(buffer) = buffer.as_singleton() {
-            if let Some(language) = buffer.read(cx).language() {
-                return language.name() == "Markdown".into();
-            }
-        }
-        false
-    }
-
     pub fn file_at<T: ToOffset>(&self, point: T, cx: &App) -> Option<Arc<dyn language::File>> {
         self.buffer.read(cx).read(cx).file_at(point).cloned()
     }
@@ -12552,9 +12542,10 @@ impl Editor {
                 this.change_selections(Default::default(), window, cx, |s| s.select(selections));
             } else {
                 let url = url::Url::parse(&clipboard_text).ok();
-                let edits = this.buffer.update(cx, |buffer, cx| {
+                let (has_markdown, edits) = this.buffer.update(cx, |buffer, cx| {
                     let snapshot = buffer.snapshot(cx);
-                    old_selections
+                    let mut has_markdown = false;
+                    let edits = old_selections
                         .into_iter()
                         .map(|selection| {
                             let language = snapshot.language_at(selection.head());
@@ -12562,6 +12553,7 @@ impl Editor {
                             if let Some(language) = language
                                 && language.name() == "Markdown".into()
                             {
+                                has_markdown = true;
                                 edit_for_markdown_paste(
                                     &snapshot,
                                     range,
@@ -12572,9 +12564,15 @@ impl Editor {
                                 (range, clipboard_text.clone())
                             }
                         })
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>();
+                    (has_markdown, edits)
                 });
-                this.edit(edits, cx);
+
+                if has_markdown {
+                    this.edit(edits, cx);
+                } else {
+                    this.insert(&clipboard_text, window, cx);
+                }
             }
 
             let trigger_in_words =
