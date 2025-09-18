@@ -25974,6 +25974,185 @@ let result = variable * 2;",
     );
 }
 
+#[gpui::test]
+async fn test_paste_url_in_markdown_copied_from_other_app(cx: &mut gpui::TestAppContext) {
+    init_test(cx, |_| {});
+
+    let url = "https://zed.dev";
+
+    let markdown_language = Arc::new(Language::new(
+        LanguageConfig {
+            name: "Markdown".into(),
+            ..LanguageConfig::default()
+        },
+        None,
+    ));
+
+    let mut cx = EditorTestContext::new(cx).await;
+    cx.update_buffer(|buffer, cx| buffer.set_language(Some(markdown_language), cx));
+    cx.set_state("Hello, «editorˇ».\nZed is «ˇgreat» (see this link: ˇ)");
+
+    cx.update_editor(|editor, window, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(url.to_string()));
+        editor.paste(&Paste, window, cx);
+    });
+
+    cx.assert_editor_state(&format!(
+        "Hello, [editor]({url})ˇ.\nZed is [great]({url})ˇ (see this link: {url}ˇ)"
+    ));
+}
+
+#[gpui::test]
+async fn test_paste_url_in_markdown_copied_from_zed(cx: &mut gpui::TestAppContext) {
+    init_test(cx, |_| {});
+
+    let url = "https://zed.dev";
+
+    let markdown_language = Arc::new(Language::new(
+        LanguageConfig {
+            name: "Markdown".into(),
+            ..LanguageConfig::default()
+        },
+        None,
+    ));
+
+    let mut cx = EditorTestContext::new(cx).await;
+    cx.update_buffer(|buffer, cx| buffer.set_language(Some(markdown_language), cx));
+    cx.set_state(&format!(
+        "Hello, editor.\nZed is great (see this link: )\n«{url}ˇ»"
+    ));
+
+    cx.update_editor(|editor, window, cx| {
+        editor.copy(&Copy, window, cx);
+    });
+
+    cx.set_state(&format!(
+        "Hello, «editorˇ».\nZed is «ˇgreat» (see this link: ˇ)\n{url}"
+    ));
+
+    cx.update_editor(|editor, window, cx| {
+        editor.paste(&Paste, window, cx);
+    });
+
+    cx.assert_editor_state(&format!(
+        "Hello, [editor]({url})ˇ.\nZed is [great]({url})ˇ (see this link: {url}ˇ)\n{url}"
+    ));
+}
+
+#[gpui::test]
+async fn test_paste_non_url_in_markdown_copied_from_other_app(cx: &mut gpui::TestAppContext) {
+    init_test(cx, |_| {});
+
+    let text = "Zed";
+
+    let markdown_language = Arc::new(Language::new(
+        LanguageConfig {
+            name: "Markdown".into(),
+            ..LanguageConfig::default()
+        },
+        None,
+    ));
+
+    let mut cx = EditorTestContext::new(cx).await;
+    cx.update_buffer(|buffer, cx| buffer.set_language(Some(markdown_language), cx));
+    cx.set_state("Hello, «editorˇ».\nZed is «ˇgreat» (see this link: ˇ)");
+
+    cx.update_editor(|editor, window, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(text.to_string()));
+        editor.paste(&Paste, window, cx);
+    });
+
+    cx.set_state("Hello, {url}ˇ.\nZed is {url}ˇ (see this link: {url}ˇ)");
+}
+
+#[gpui::test]
+async fn test_paste_url_in_rust_copied_from_other_app(cx: &mut gpui::TestAppContext) {
+    init_test(cx, |_| {});
+
+    let url = "https://zed.dev";
+
+    let markdown_language = Arc::new(Language::new(
+        LanguageConfig {
+            name: "Rust".into(),
+            ..LanguageConfig::default()
+        },
+        None,
+    ));
+
+    let mut cx = EditorTestContext::new(cx).await;
+    cx.update_buffer(|buffer, cx| buffer.set_language(Some(markdown_language), cx));
+    cx.set_state("// Hello, «editorˇ».\n// Zed is «ˇgreat» (see this link: ˇ)");
+
+    cx.update_editor(|editor, window, cx| {
+        cx.write_to_clipboard(ClipboardItem::new_string(url.to_string()));
+        editor.paste(&Paste, window, cx);
+    });
+
+    cx.set_state("// Hello, {url}ˇ.\n// Zed is {url}ˇ (see this link: {url}ˇ)");
+}
+
+// #[gpui::test]
+// async fn test_paste_markdown_url_in_multi_buffer(cx: &mut TestAppContext) {
+//     let markdown_language = Arc::new(Language::new(
+//         LanguageConfig {
+//             name: "Markdown".into(),
+//             ..LanguageConfig::default()
+//         },
+//         None,
+//     ));
+
+//     let (editor, cx) = cx.add_window_view(|window, cx| {
+//         let multi_buffer = MultiBuffer::build_multi(
+//             [
+//                 (
+//                     "this is markdown\nmore text\n",
+//                     vec![Point::row_range(0..1)],
+//                 ),
+//                 (
+//                     "this is not markdown\nmore text\n",
+//                     vec![Point::row_range(0..1)],
+//                 ),
+//             ],
+//             cx,
+//         );
+//         let editor = Editor::new(EditorMode::full(), multi_buffer.clone(), None, window, cx);
+//         let first_buffer_id = multi_buffer
+//             .read(cx)
+//             .excerpt_buffer_ids()
+//             .into_iter()
+//             .next()
+//             .unwrap();
+//         let first_buffer = multi_buffer.read(cx).buffer(first_buffer_id).unwrap();
+//         first_buffer.update(cx, |buffer, cx| {
+//             buffer.set_language(Some(markdown_language.clone()), cx);
+//         });
+
+//         let second_buffer_id = multi_buffer
+//             .read(cx)
+//             .excerpt_buffer_ids()
+//             .into_iter()
+//             .next()
+//             .unwrap();
+//         let second_buffer = multi_buffer.read(cx).buffer(first_buffer_id).unwrap();
+
+//         editor
+//     });
+//     let mut cx = EditorTestContext::for_editor_in(editor.clone(), cx).await;
+
+//     cx.assert_excerpts_with_selections(indoc! {"
+//         [EXCERPT]
+//         ˇ[FOLDED]
+//         [EXCERPT]
+//         aaa
+//         bbb
+//         [EXCERPT]
+//         [FOLDED]
+//         [EXCERPT]
+//         [FOLDED]
+//         "
+//     });
+// }
+
 #[track_caller]
 fn extract_color_inlays(editor: &Editor, cx: &App) -> Vec<Rgba> {
     editor
