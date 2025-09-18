@@ -12542,9 +12542,9 @@ impl Editor {
                 this.change_selections(Default::default(), window, cx, |s| s.select(selections));
             } else {
                 let url = url::Url::parse(&clipboard_text).ok();
-                let (has_markdown, edits) = this.buffer.update(cx, |buffer, cx| {
+                let (all_selections_are_markdown, edits) = this.buffer.update(cx, |buffer, cx| {
                     let snapshot = buffer.snapshot(cx);
-                    let mut has_markdown = false;
+                    let mut all_selections_are_markdown = true;
                     let edits = old_selections
                         .into_iter()
                         .map(|selection| {
@@ -12553,7 +12553,6 @@ impl Editor {
                             if let Some(language) = language
                                 && language.name() == "Markdown".into()
                             {
-                                has_markdown = true;
                                 edit_for_markdown_paste(
                                     &snapshot,
                                     range,
@@ -12561,14 +12560,15 @@ impl Editor {
                                     url.clone(),
                                 )
                             } else {
+                                all_selections_are_markdown = false;
                                 (range, clipboard_text.clone())
                             }
                         })
                         .collect::<Vec<_>>();
-                    (has_markdown, edits)
+                    (all_selections_are_markdown, edits)
                 });
 
-                if has_markdown {
+                if all_selections_are_markdown {
                     this.edit(edits, cx);
                 } else {
                     this.insert(&clipboard_text, window, cx);
