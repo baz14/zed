@@ -12542,37 +12542,52 @@ impl Editor {
                 this.change_selections(Default::default(), window, cx, |s| s.select(selections));
             } else {
                 let url = url::Url::parse(&clipboard_text).ok();
-                let (all_selections_are_markdown, edits) = this.buffer.update(cx, |buffer, cx| {
+
+                let auto_indent_mode = if !clipboard_text.is_empty() {
+                    Some(AutoindentMode::Block {
+                        original_indent_columns: Vec::new(),
+                    })
+                } else {
+                    None
+                };
+
+                let selection_anchors = this.buffer.update(cx, |buffer, cx| {
                     let snapshot = buffer.snapshot(cx);
-                    let mut all_selections_are_markdown = true;
-                    let edits = old_selections
-                        .into_iter()
-                        .map(|selection| {
-                            let language = snapshot.language_at(selection.head());
-                            let range = selection.range();
-                            if let Some(language) = language
-                                && language.name() == "Markdown".into()
-                            {
-                                edit_for_markdown_paste(
-                                    &snapshot,
-                                    range,
-                                    &*clipboard_text,
-                                    url.clone(),
-                                )
-                            } else {
-                                all_selections_are_markdown = false;
-                                (range, clipboard_text.clone())
-                            }
+
+                    let anchors = old_selections
+                        .iter()
+                        .map(|s| {
+                            let anchor = snapshot.anchor_after(s.head());
+                            s.map(|_| anchor)
                         })
                         .collect::<Vec<_>>();
-                    (all_selections_are_markdown, edits)
+
+                    let mut edits = Vec::new();
+
+                    for selection in old_selections.iter() {
+                        let language = snapshot.language_at(selection.head());
+                        let range = selection.range();
+
+                        let (edit_range, edit_text) = if let Some(language) = language
+                            && language.name() == "Markdown".into()
+                        {
+                            edit_for_markdown_paste(&snapshot, range, &*clipboard_text, url.clone())
+                        } else {
+                            (range, clipboard_text.clone())
+                        };
+
+                        edits.push((edit_range, edit_text));
+                    }
+
+                    drop(snapshot);
+                    buffer.edit(edits, auto_indent_mode, cx);
+
+                    anchors
                 });
 
-                if all_selections_are_markdown {
-                    this.edit(edits, cx);
-                } else {
-                    this.insert(&clipboard_text, window, cx);
-                }
+                this.change_selections(Default::default(), window, cx, |s| {
+                    s.select_anchors(selection_anchors);
+                });
             }
 
             let trigger_in_words =
